@@ -1,0 +1,218 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-6);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-10) var(--sp-8);
+  box-shadow: var(--shadow-lg);
+}
+
+.logoRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-8);
+}
+
+.logoIcon {
+  width: 32px;
+  height: 32px;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  font-family: var(--font-ui);
+}
+
+.logoText {
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.logoText span {
+  color: var(--accent);
+}
+
+.heading {
+  font-family: var(--font-ui);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--sp-1);
+  letter-spacing: -0.3px;
+}
+
+.sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: var(--sp-8);
+}
+
+.roleToggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px;
+  margin-bottom: var(--sp-6);
+}
+
+.roleBtn {
+  padding: var(--sp-2) 0;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all var(--transition);
+  border: none;
+}
+
+.roleBtn.selected {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.roleBtn.adminSelected {
+  background: var(--bg-surface);
+  color: var(--admin-accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.label {
+  font-size: 12px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.input {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px var(--sp-3);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  outline: none;
+  width: 100%;
+}
+
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.input.adminFocus:focus {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px var(--admin-subtle);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.forgotRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: calc(-1 * var(--sp-2));
+}
+
+.forgotLink {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+
+.forgotLink:hover {
+  color: var(--accent);
+}
+
+.submitBtn {
+  width: 100%;
+  padding: 11px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  margin-top: var(--sp-2);
+  transition: background var(--transition), transform var(--transition);
+}
+
+.submitBtn:hover {
+  background: var(--accent-hover);
+}
+
+.submitBtn:active {
+  transform: scale(0.99);
+}
+
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.submitBtn.adminBtn {
+  background: var(--admin-accent);
+}
+
+.submitBtn.adminBtn:hover {
+  background: var(--admin-accent-hover);
+}
+
+.error {
+  font-size: 12px;
+  color: var(--danger);
+  background: var(--danger-subtle);
+  border: 1px solid rgba(240,96,96,0.2);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-2) var(--sp-3);
+  text-align: center;
+}
+
+.footer {
+  margin-top: var(--sp-6);
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.footer a {
+  color: var(--accent);
+  font-weight: 500;
+}

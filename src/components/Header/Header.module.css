@@ -1,0 +1,136 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: 56px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-6);
+  backdrop-filter: blur(12px);
+  gap: var(--sp-4);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.logoIcon {
+  width: 30px;
+  height: 30px;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  font-family: var(--font-ui);
+  flex-shrink: 0;
+}
+
+.logoText {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+
+.logoText span {
+  color: var(--accent);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-shrink: 0;
+}
+
+.userBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 5px var(--sp-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.userDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+.userName {
+  font-size: 12px;
+  font-family: var(--font-ui);
+  color: var(--text-secondary);
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logoutBtn {
+  font-size: 13px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  padding: 6px var(--sp-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.logoutBtn:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-subtle);
+}
+
+/* ── Tablet ── */
+@media (max-width: 768px) {
+  .header {
+    padding: 0 var(--sp-4);
+    height: 52px;
+  }
+
+  .userName {
+    max-width: 80px;
+  }
+}
+
+/* ── Mobile ── */
+@media (max-width: 480px) {
+  .header {
+    padding: 0 var(--sp-3);
+    height: 50px;
+  }
+
+  .userBadge {
+    display: none;
+  }
+
+  .logoutBtn {
+    font-size: 12px;
+    padding: 5px var(--sp-2);
+  }
+
+  .logoText {
+    font-size: 14px;
+  }
+}
