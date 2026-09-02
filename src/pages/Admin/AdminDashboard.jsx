@@ -84,7 +84,7 @@ const AdminDashboard = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
+  
   const handleTabChange = (id) => {
     setTab(id);
     setSidebarOpen(false);

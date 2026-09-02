@@ -1,0 +1,125 @@
+.footer {
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  padding: var(--sp-10) var(--sp-8) var(--sp-6);
+}
+
+.grid {
+  max-width: 1000px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: var(--sp-8);
+  padding-bottom: var(--sp-8);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.colTitle {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--sp-3);
+  letter-spacing: -0.1px;
+}
+
+.colText {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.75;
+}
+
+.linkList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.linkList a {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+
+.linkList a:hover {
+  color: var(--accent);
+}
+
+.contactItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.contactLabel {
+  font-size: 12px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.contactVal {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.bottom {
+  max-width: 1000px;
+  margin: var(--sp-5) auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.copy {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+}
+
+.tag {
+  font-size: 11px;
+  font-family: var(--font-ui);
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-soft);
+  padding: 3px 10px;
+  border-radius: 99px;
+}
+
+/* ── Tablet ── */
+@media (max-width: 768px) {
+  .footer {
+    padding: var(--sp-8) var(--sp-6) var(--sp-5);
+  }
+
+  .grid {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-6);
+  }
+}
+
+/* ── Mobile ── */
+@media (max-width: 480px) {
+  .footer {
+    padding: var(--sp-6) var(--sp-4) var(--sp-4);
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+    gap: var(--sp-5);
+  }
+
+  .bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-2);
+  }
+}
