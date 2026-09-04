@@ -251,7 +251,8 @@ const ChatPage = () => {
                   <div className={`${styles.msgAvatar} ${msg.role === 'bot' ? styles.bot : styles.user}`}>
                     {msg.role === 'bot' ? 'R' : initials}
                   </div>
-                  <div>
+                  {/* Clean CSS-based wrapper added here */}
+                  <div className={styles.msgContent}>
                     <div className={`${styles.bubble} ${msg.role === 'bot' ? styles.bot : styles.user}`}>
                       {msg.text}
                     </div>
@@ -264,9 +265,11 @@ const ChatPage = () => {
             {typing && (
               <div className={styles.msgRow}>
                 <div className={`${styles.msgAvatar} ${styles.bot}`}>R</div>
-                <div className={`${styles.bubble} ${styles.bot}`}
-                  style={{ color: 'var(--text-muted)' }}>
-                  Thinking…
+                <div className={styles.msgContent}>
+                  <div className={`${styles.bubble} ${styles.bot}`}
+                    style={{ color: 'var(--text-muted)' }}>
+                    Thinking…
+                  </div>
                 </div>
               </div>
             )}
