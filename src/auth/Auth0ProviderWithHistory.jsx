@@ -16,7 +16,7 @@ const Auth0ProviderWithHistory = ({ children }) => {
         redirect_uri: window.location.origin,
       }}
       onRedirectCallback={onRedirectCallback}
-      cacheLocation="memory"
+      cacheLocation="localstorage"
       useRefreshTokens={true}
     >
       {children}
