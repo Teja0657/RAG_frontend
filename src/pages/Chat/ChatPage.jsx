@@ -4,21 +4,16 @@ import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import styles from './Chat.module.css';
 
-const INITIAL_CHATS = [
-  { id: 1, title: 'Explain Hybrid RAG',      pinned: true  },
-  { id: 2, title: 'Summarise Q3 report',     pinned: true  },
-  { id: 3, title: 'Compare vector stores',   pinned: false },
-  { id: 4, title: 'LangChain vs LlamaIndex', pinned: false },
-];
-
+const API_BASE = 'http://localhost:8000';
 const BOT_GREETING = "Hello! I'm your RAG-powered assistant. Ask me anything about your documents.";
 const fmt = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 const ChatPage = () => {
   const { currentUser } = useAuth();
+  const userId = currentUser?.email;
 
-  const [chats, setChats]           = useState(INITIAL_CHATS);
-  const [activeChatId, setActive]   = useState(1);
+  const [chats, setChats]           = useState([]);
+  const [activeChatId, setActive]   = useState(null); // null = new, unsaved conversation
   const [renamingId, setRenamingId] = useState(null);
   const [renameVal, setRenameVal]   = useState('');
   const [messages, setMessages]     = useState([
@@ -26,6 +21,7 @@ const ChatPage = () => {
   ]);
   const [input, setInput]       = useState('');
   const [typing, setTyping]     = useState(false);
+  const [loadingChats, setLoadingChats] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const messagesEndRef = useRef(null);
@@ -34,7 +30,6 @@ const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typing]);
 
-  // Close sidebar on resize to desktop
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth > 768) setSidebarOpen(false);
@@ -42,6 +37,27 @@ const ChatPage = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  /* ── Load chat list on mount ── */
+  useEffect(() => {
+    if (!userId) return;
+
+    const loadChats = async () => {
+      setLoadingChats(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/chats?user_id=${encodeURIComponent(userId)}`);
+        const data = await res.json();
+        // pinned is a frontend-only concept for now — backend doesn't store it
+        setChats(data.map(c => ({ ...c, pinned: false })));
+      } catch (err) {
+        console.error('Failed to load chats:', err);
+      } finally {
+        setLoadingChats(false);
+      }
+    };
+
+    loadChats();
+  }, [userId]);
 
   const pinnedChats = chats.filter(c => c.pinned);
   const recentChats = chats.filter(c => !c.pinned);
@@ -51,65 +67,156 @@ const ChatPage = () => {
   const initials    = displayName
     .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
-  /* ── New chat ── */
+  /* ── New chat: just clears the view, no API call yet ── */
   const handleNewChat = () => {
-    const id = Date.now();
-    setChats(prev => [{ id, title: 'New Chat', pinned: false }, ...prev]);
-    setActive(id);
+    setActive(null);
     setMessages([{ id: 1, role: 'bot', text: BOT_GREETING, time: new Date() }]);
     setSidebarOpen(false);
   };
 
-  /* ── Pin (max 3) ── */
-  const handlePin = (id) => {
-    setChats(prev => prev.map(c => {
-      if (c.id !== id) return c;
-      if (!c.pinned && pinnedChats.length >= 3) return c;
-      return { ...c, pinned: !c.pinned };
-    }));
+  /* ── Select an existing chat: fetch its full message history ── */
+  const handleSelectChat = async (chatId) => {
+    setActive(chatId);
+    setSidebarOpen(false);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/chats/${chatId}?user_id=${encodeURIComponent(userId)}`
+      );
+      if (!res.ok) throw new Error('Not found');
+      const data = await res.json();
+
+      const loaded = data.messages.map((m, i) => ({
+        id: i,
+        role: m.role === 'assistant' ? 'bot' : 'user',
+        text: m.content,
+        time: new Date(), // backend doesn't store per-message timestamps yet
+      }));
+      setMessages(loaded.length ? loaded : [{ id: 1, role: 'bot', text: BOT_GREETING, time: new Date() }]);
+    } catch (err) {
+      console.error('Failed to load conversation:', err);
+    }
   };
 
-  /* ── Rename ── */
+  /* ── Pin (max 3) — calls backend ── */
+  const handlePin = async (id) => {
+    const chat = chats.find(c => c.id === id);
+    if (!chat) return;
+
+    const newPinned = !chat.pinned;
+    if (newPinned && pinnedChats.length >= 3) return; // limit reached, do nothing
+
+    try {
+      const res = await fetch(`${API_BASE}/api/chats/${id}/pin`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, pinned: newPinned }),
+      });
+      if (!res.ok) throw new Error('Pin update failed');
+
+      setChats(prev => prev.map(c =>
+        c.id === id ? { ...c, pinned: newPinned } : c
+      ));
+    } catch (err) {
+      console.error('Failed to update pin:', err);
+    }
+  };
+
+  /* ── Rename — frontend-only, resets on refresh ── */
   const startRename = (id, title) => {
     setRenamingId(id);
     setRenameVal(title);
   };
 
-  const commitRename = (id) => {
-    if (renameVal.trim()) {
-      setChats(prev => prev.map(c =>
-        c.id === id ? { ...c, title: renameVal.trim() } : c
-      ));
-    }
+  /* ── Rename — calls backend ── */
+  const commitRename = async (id) => {
+    const title = renameVal.trim();
     setRenamingId(null);
+
+    if (!title) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/chats/${id}/rename`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, title }),
+      });
+      if (!res.ok) throw new Error('Rename failed');
+
+      setChats(prev => prev.map(c =>
+        c.id === id ? { ...c, title } : c
+      ));
+    } catch (err) {
+      console.error('Failed to rename chat:', err);
+    }
   };
 
-  /* ── Delete ── */
-  const handleDelete = (id) => {
-    setChats(prev => {
-      const remaining = prev.filter(c => c.id !== id);
-      if (activeChatId === id && remaining.length > 0) {
-        setActive(remaining[0].id);
-      }
-      return remaining;
-    });
+  /* ── Delete — calls backend ── */
+  const handleDelete = async (id) => {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/chats/${id}?user_id=${encodeURIComponent(userId)}`,
+        { method: 'DELETE' }
+      );
+      if (!res.ok && res.status !== 204) throw new Error('Delete failed');
+
+      setChats(prev => {
+        const remaining = prev.filter(c => c.id !== id);
+        if (activeChatId === id) {
+          setActive(remaining.length > 0 ? remaining[0].id : null);
+          setMessages([{ id: 1, role: 'bot', text: BOT_GREETING, time: new Date() }]);
+        }
+        return remaining;
+      });
+    } catch (err) {
+      console.error('Failed to delete chat:', err);
+    }
   };
 
-  /* ── Send ── */
-  const handleSend = () => {
+  /* ── Send: real API call ── */
+  const handleSend = async () => {
     const text = input.trim();
-    if (!text) return;
+    if (!text || !userId) return;
+
     setMessages(prev => [...prev, { id: Date.now(), role: 'user', text, time: new Date() }]);
     setInput('');
     setTyping(true);
-    setTimeout(() => {
+
+    try {
+      const res = await fetch(`${API_BASE}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          question: text,
+          conversation_id: activeChatId, // null if this is a brand-new conversation
+        }),
+      });
+
+      if (!res.ok) throw new Error('Request failed');
+      const data = await res.json();
+
+      setTyping(false);
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1, role: 'bot', text: data.answer, time: new Date()
+      }]);
+
+      // First message in a new conversation — add it to the sidebar list
+      if (!activeChatId) {
+        setActive(data.conversation_id);
+        setChats(prev => [
+          { id: data.conversation_id, title: text.slice(0, 50), pinned: false, created_at: new Date().toISOString() },
+          ...prev,
+        ]);
+      }
+    } catch (err) {
+      console.error('Chat request failed:', err);
       setTyping(false);
       setMessages(prev => [...prev, {
         id: Date.now() + 1, role: 'bot',
-        text: `This is a simulated RAG response to: "${text}". Connect the backend to get real answers.`,
+        text: 'Something went wrong reaching the assistant. Please try again.',
         time: new Date()
       }]);
-    }, 1400);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -123,7 +230,7 @@ const ChatPage = () => {
   const ChatListItem = ({ chat }) => (
     <div
       className={`${styles.chatItem} ${chat.id === activeChatId ? styles.active : ''}`}
-      onClick={() => { setActive(chat.id); setSidebarOpen(false); }}
+      onClick={() => handleSelectChat(chat.id)}
     >
       <div className={styles.chatItemLeft}>
         {chat.pinned && <span className={styles.pinIcon}>📌</span>}
@@ -172,14 +279,11 @@ const ChatPage = () => {
       <Header />
 
       <div className={styles.body}>
-
-        {/* Overlay for mobile */}
         <div
           className={`${styles.overlay} ${sidebarOpen ? styles.visible : ''}`}
           onClick={() => setSidebarOpen(false)}
         />
 
-        {/* ── Sidebar ── */}
         <aside className={`${styles.sidebar} ${sidebarOpen ? styles.open : ''}`}>
           <div className={styles.sidebarTop}>
             <button className={styles.newChatBtn} onClick={handleNewChat}>
@@ -193,34 +297,37 @@ const ChatPage = () => {
           </div>
 
           <div className={styles.sidebarScroll}>
-            {pinnedChats.length > 0 && (
-              <>
-                <p className={styles.sectionLabel}>Pinned</p>
-                {pinnedChats.map(c => <ChatListItem key={c.id} chat={c} />)}
-              </>
-            )}
-            {recentChats.length > 0 && (
-              <>
-                <p className={styles.sectionLabel}>Recent</p>
-                {recentChats.map(c => <ChatListItem key={c.id} chat={c} />)}
-              </>
-            )}
-            {chats.length === 0 && (
-              <p style={{
-                fontSize: 12, color: 'var(--text-muted)',
-                textAlign: 'center', marginTop: 24
-              }}>
-                No chats yet. Start a new one!
+            {loadingChats ? (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 24 }}>
+                Loading chats…
               </p>
+            ) : (
+              <>
+                {pinnedChats.length > 0 && (
+                  <>
+                    <p className={styles.sectionLabel}>Pinned</p>
+                    {pinnedChats.map(c => <ChatListItem key={c.id} chat={c} />)}
+                  </>
+                )}
+                {recentChats.length > 0 && (
+                  <>
+                    <p className={styles.sectionLabel}>Recent</p>
+                    {recentChats.map(c => <ChatListItem key={c.id} chat={c} />)}
+                  </>
+                )}
+                {chats.length === 0 && (
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 24 }}>
+                    No chats yet. Start a new one!
+                  </p>
+                )}
+              </>
             )}
           </div>
         </aside>
 
-        {/* ── Chat Window ── */}
         <main className={styles.chatMain}>
           <div className={styles.chatTopBar}>
             <div className={styles.chatTopLeft}>
-              {/* Hamburger — mobile only */}
               <button
                 className={styles.hamburger}
                 onClick={() => setSidebarOpen(prev => !prev)}
@@ -228,7 +335,7 @@ const ChatPage = () => {
               >
                 {sidebarOpen ? '✕' : '☰'}
               </button>
-              <span className={styles.chatName}>{activeChat?.title || 'Chat'}</span>
+              <span className={styles.chatName}>{activeChat?.title || 'New Chat'}</span>
             </div>
             <span className={styles.modelTag}>Hybrid RAG</span>
           </div>
@@ -251,7 +358,6 @@ const ChatPage = () => {
                   <div className={`${styles.msgAvatar} ${msg.role === 'bot' ? styles.bot : styles.user}`}>
                     {msg.role === 'bot' ? 'R' : initials}
                   </div>
-                  {/* Clean CSS-based wrapper added here */}
                   <div className={styles.msgContent}>
                     <div className={`${styles.bubble} ${msg.role === 'bot' ? styles.bot : styles.user}`}>
                       {msg.text}
@@ -276,7 +382,6 @@ const ChatPage = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <div className={styles.inputArea}>
             <div className={styles.inputRow}>
               <textarea
