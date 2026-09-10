@@ -1,82 +1,65 @@
-import { useState, useRef } from 'react';
-import { useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import styles from './Admin.module.css';
 
-const SEED_DOCS = [
-  { id: 1, name: 'Q3_Report_2024.pdf',     size: '2.4 MB', date: '28 Aug 2024' },
-  { id: 2, name: 'RAG_Architecture.docx',  size: '1.1 MB', date: '15 Aug 2024' },
-  { id: 3, name: 'Vector_Store_Guide.pdf', size: '3.7 MB', date: '10 Aug 2024' },
-];
-
-const SEED_USERS = [
-  { id: 1, name: 'Priya Sharma',  email: 'priya@example.com',  queries: 142, status: 'active',   joined: '01 Jul 2024' },
-  { id: 2, name: 'Rahul Mehta',   email: 'rahul@example.com',  queries: 89,  status: 'active',   joined: '12 Jul 2024' },
-  { id: 3, name: 'Ananya Reddy',  email: 'ananya@example.com', queries: 54,  status: 'inactive', joined: '20 Jul 2024' },
-  { id: 4, name: 'Kiran Babu',    email: 'kiran@example.com',  queries: 201, status: 'active',   joined: '05 Aug 2024' },
-  { id: 5, name: 'Sneha Patel',   email: 'sneha@example.com',  queries: 33,  status: 'inactive', joined: '18 Aug 2024' },
-];
-
-const LOGS = [
-  { type: 'success', time: '13:42', msg: 'Document "Q3_Report_2024.pdf" indexed successfully.' },
-  { type: 'info',    time: '13:38', msg: 'User kiran@example.com ran 8 queries.' },
-  { type: 'warn',    time: '13:21', msg: 'Retrieval latency spike detected — 1.8s avg.' },
-  { type: 'info',    time: '13:10', msg: 'New user registered: sneha@example.com' },
-  { type: 'success', time: '12:55', msg: 'Vector store re-indexed: 1,240 chunks.' },
-  { type: 'danger',  time: '12:44', msg: 'Failed login attempt from unknown IP.' },
-  { type: 'info',    time: '12:30', msg: 'Admin session started.' },
-];
-
-const BAR_DATA = [
-  { label: 'Mon', val: 65 },
-  { label: 'Tue', val: 82 },
-  { label: 'Wed', val: 54 },
-  { label: 'Thu', val: 91 },
-  { label: 'Fri', val: 78 },
-  { label: 'Sat', val: 30 },
-  { label: 'Sun', val: 22 },
-];
-
-const METRICS = [
-  { label: 'Retrieval Accuracy', val: 94 },
-  { label: 'Answer Relevance',   val: 88 },
-  { label: 'Context Precision',  val: 76 },
-  { label: 'Faithfulness Score', val: 91 },
-];
+const API_BASE = 'http://localhost:8000';
 
 const NAV = [
   { id: 'overview', icon: '📊', label: 'Overview'     },
   { id: 'upload',   icon: '📁', label: 'Documents'    },
   { id: 'users',    icon: '👥', label: 'Users'        },
-  { id: 'monitor',  icon: '🖥️', label: 'Monitor'      },
   { id: 'stats',    icon: '📈', label: 'Statistics'   },
   { id: 'chattest', icon: '🤖', label: 'Chatbot Test' },
 ];
 
 const TAB_INFO = {
-  overview: { title: 'Overview',     sub: 'System summary and recent activity.'          },
-  upload:   { title: 'Documents',    sub: 'Upload, manage and remove indexed documents.' },
-  users:    { title: 'Users',        sub: 'View, monitor and delete registered users.'   },
-  monitor:  { title: 'Monitor',      sub: 'Live logs and system health status.'          },
-  stats:    { title: 'Statistics',   sub: 'Query volume and model performance data.'     },
-  chattest: { title: 'Chatbot Test', sub: 'Test the RAG pipeline directly.'              },
+  overview: { title: 'Overview',     sub: 'System summary.'                              },
+  upload:   { title: 'Documents',    sub: 'Upload documents to be indexed for retrieval.' },
+  users:    { title: 'Users',        sub: 'Users who have used the chat assistant.'       },
+  stats:    { title: 'Statistics',   sub: 'Judge-model scores from Chatbot Test runs.'    },
+  chattest: { title: 'Chatbot Test', sub: 'Test the RAG pipeline and score its output.'   },
+};
+
+const SCORE_LABELS = {
+  retrieval_accuracy: 'Retrieval Accuracy',
+  context_precision:  'Context Precision',
+  answer_relevance:   'Answer Relevance',
+  faithfulness:       'Faithfulness Score',
 };
 
 const AdminDashboard = () => {
-  const [tab, setTab]             = useState('overview');
-  const [docs, setDocs]           = useState(SEED_DOCS);
-  const [users, setUsers]         = useState(SEED_USERS);
-  const [dragging, setDragging]   = useState(false);
+  const [tab, setTab] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Overview
+  const [overview, setOverview] = useState(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+
+  // Documents
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedThisSession, setUploadedThisSession] = useState([]);
+  const [uploadError, setUploadError] = useState('');
+  const fileRef = useRef(null);
+
+  // Users
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+
+  // Statistics
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // Chatbot Test
   const [testInput, setTestInput] = useState('');
-  const [testMsgs, setTestMsgs]   = useState([
+  const [testMsgs, setTestMsgs] = useState([
     { role: 'bot', text: 'Admin test mode active. Send a query to evaluate the RAG pipeline.' }
   ]);
-  const fileRef = useRef(null);
-  const maxBar  = Math.max(...BAR_DATA.map(b => b.val));
+  const [testLoading, setTestLoading] = useState(false);
+  const [lastScores, setLastScores] = useState(null);
+  const [lastLatency, setLastLatency] = useState(null);
 
-  // Close sidebar on resize to desktop
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth > 768) setSidebarOpen(false);
@@ -84,23 +67,75 @@ const AdminDashboard = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  
+
   const handleTabChange = (id) => {
     setTab(id);
     setSidebarOpen(false);
   };
 
+  /* ── Overview ── */
+  useEffect(() => {
+    if (tab !== 'overview') return;
+    setOverviewLoading(true);
+    fetch(`${API_BASE}/api/admin/overview`)
+      .then(res => res.json())
+      .then(setOverview)
+      .catch(err => console.error('Failed to load overview:', err))
+      .finally(() => setOverviewLoading(false));
+  }, [tab]);
+
+  /* ── Users ── */
+  useEffect(() => {
+    if (tab !== 'users') return;
+    setUsersLoading(true);
+    fetch(`${API_BASE}/api/admin/users`)
+      .then(res => res.json())
+      .then(setUsers)
+      .catch(err => console.error('Failed to load users:', err))
+      .finally(() => setUsersLoading(false));
+  }, [tab]);
+
+  /* ── Statistics ── */
+  useEffect(() => {
+    if (tab !== 'stats') return;
+    setStatsLoading(true);
+    fetch(`${API_BASE}/api/admin/stats`)
+      .then(res => res.json())
+      .then(setStats)
+      .catch(err => console.error('Failed to load stats:', err))
+      .finally(() => setStatsLoading(false));
+  }, [tab]);
+
   /* ── Upload ── */
+  const uploadFile = async (file) => {
+    setUploadError('');
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`${API_BASE}/api/admin/documents`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+
+      setUploadedThisSession(prev => [
+        { name: data.filename, date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) },
+        ...prev,
+      ]);
+    } catch (err) {
+      console.error('Upload failed:', err);
+      setUploadError('Upload failed. Check that the file is a valid PDF and try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleFiles = (files) => {
-    const newDocs = Array.from(files).map(f => ({
-      id: Date.now() + Math.random(),
-      name: f.name,
-      size: (f.size / (1024 * 1024)).toFixed(1) + ' MB',
-      date: new Date().toLocaleDateString('en-GB', {
-        day: '2-digit', month: 'short', year: 'numeric'
-      }),
-    }));
-    setDocs(prev => [...newDocs, ...prev]);
+    const file = files[0]; // one at a time — backend processes a single PDF per request
+    if (file) uploadFile(file);
   };
 
   const handleDrop = (e) => {
@@ -110,56 +145,92 @@ const AdminDashboard = () => {
   };
 
   /* ── Chatbot test ── */
-  const handleTestSend = () => {
+  const handleTestSend = async () => {
     const text = testInput.trim();
-    if (!text) return;
+    if (!text || testLoading) return;
+
     setTestMsgs(prev => [...prev, { role: 'user', text }]);
     setTestInput('');
-    setTimeout(() => {
-      setTestMsgs(prev => [...prev, {
-        role: 'bot',
-        text: `[RAG Pipeline] Retrieved 3 chunks for: "${text}". Connect backend for real responses.`
-      }]);
-    }, 1000);
+    setTestLoading(true);
+    setLastScores(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/test-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: text }),
+      });
+      if (!res.ok) throw new Error('Test request failed');
+      const data = await res.json();
+
+      setTestMsgs(prev => [...prev, { role: 'bot', text: data.answer }]);
+      setLastScores(data.scores);
+      setLastLatency({ retrieval: data.retrieval_time_ms, llm: data.llm_latency_ms });
+    } catch (err) {
+      console.error('Test chat failed:', err);
+      setTestMsgs(prev => [...prev, { role: 'bot', text: 'Test request failed. Check the backend logs.' }]);
+    } finally {
+      setTestLoading(false);
+    }
   };
 
-  /* ── Tabs ── */
-  const renderOverview = () => (
-    <>
-      <div className={styles.statsGrid}>
-        <div className={styles.statCard}>
-          <p className={`${styles.statValue} ${styles.accent}`}>{docs.length}</p>
-          <p className={styles.statLabel}>Documents indexed</p>
+  const renderOverview = () => {
+    if (overviewLoading) return <p className={styles.pageSub}>Loading…</p>;
+    if (!overview) return <p className={styles.pageSub}>Failed to load overview.</p>;
+
+    return (
+      <>
+        <div className={styles.statsGrid}>
+          <div className={styles.statCard}>
+            <p className={`${styles.statValue} ${styles.accent}`}>{overview.indexed_chunks}</p>
+            <p className={styles.statLabel}>Indexed chunks</p>
+          </div>
+          <div className={styles.statCard}>
+            <p className={styles.statValue}>{overview.registered_users}</p>
+            <p className={styles.statLabel}>Registered users</p>
+          </div>
+          <div className={styles.statCard}>
+            <p className={`${styles.statValue} ${styles.accent}`}>{overview.total_queries}</p>
+            <p className={styles.statLabel}>Total queries</p>
+          </div>
         </div>
-        <div className={styles.statCard}>
-          <p className={styles.statValue}>{users.length}</p>
-          <p className={styles.statLabel}>Registered users</p>
+
+        <div className={styles.card}>
+          <p className={styles.cardTitle}>Quick Actions</p>
+          <div style={{ display: 'flex', gap: 'var(--sp-3)', flexWrap: 'wrap' }}>
+            <button className={styles.testSendBtn} onClick={() => handleTabChange('upload')}>
+              Upload a document
+            </button>
+            <button className={styles.testSendBtn} onClick={() => handleTabChange('chattest')}>
+              Run a test query
+            </button>
+            <button className={styles.testSendBtn} onClick={() => handleTabChange('stats')}>
+              View statistics
+            </button>
+          </div>
         </div>
-        <div className={styles.statCard}>
-          <p className={`${styles.statValue} ${styles.accent}`}>
-            {users.reduce((s, u) => s + u.queries, 0)}
-          </p>
-          <p className={styles.statLabel}>Total queries</p>
+
+        <div className={styles.card}>
+          <p className={styles.cardTitle}>Recent Activity</p>
+          <div className={styles.logList}>
+            {overview.recent_activity.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
+                No queries yet.
+              </p>
+            ) : overview.recent_activity.map((a, i) => (
+              <div key={i} className={styles.logItem}>
+                <span className={styles.logDot} />
+                <span className={styles.logTime}>
+                  {new Date(a.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                </span>
+                <span className={styles.logMsg}>{a.user_id} asked: "{a.text.slice(0, 60)}{a.text.length > 60 ? '…' : ''}"</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className={styles.statCard}>
-          <p className={`${styles.statValue} ${styles.warn}`}>1.2s</p>
-          <p className={styles.statLabel}>Avg. response time</p>
-        </div>
-      </div>
-      <div className={styles.card}>
-        <p className={styles.cardTitle}>Recent Activity</p>
-        <div className={styles.logList}>
-          {LOGS.map((l, i) => (
-            <div key={i} className={styles.logItem}>
-              <span className={`${styles.logDot} ${styles[l.type]}`} />
-              <span className={styles.logTime}>{l.time}</span>
-              <span className={styles.logMsg}>{l.msg}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </>
-  );
+      </>
+    );
+  };
 
   const renderUpload = () => (
     <>
@@ -168,39 +239,38 @@ const AdminDashboard = () => {
         onDragOver={e => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        onClick={() => fileRef.current.click()}
+        onClick={() => !uploading && fileRef.current.click()}
       >
         <div className={styles.uploadIcon}>📄</div>
-        <p className={styles.uploadTitle}>Drop files here or click to browse</p>
-        <p className={styles.uploadSub}>PDF, DOCX, TXT supported · Max 50 MB</p>
+        <p className={styles.uploadTitle}>
+          {uploading ? 'Uploading and indexing…' : 'Drop a file here or click to browse'}
+        </p>
+        <p className={styles.uploadSub}>PDF supported</p>
         <input
           ref={fileRef}
           type="file"
-          multiple
-          accept=".pdf,.docx,.txt"
+          accept=".pdf"
           style={{ display: 'none' }}
           onChange={e => handleFiles(e.target.files)}
+          disabled={uploading}
         />
       </div>
+
+      {uploadError && (
+        <p style={{ color: 'var(--danger)', fontSize: 13, marginTop: 12 }}>{uploadError}</p>
+      )}
+
       <div className={styles.card}>
-        <p className={styles.cardTitle}>Indexed Documents ({docs.length})</p>
+        <p className={styles.cardTitle}>Uploaded This Session ({uploadedThisSession.length})</p>
         <div className={styles.uploadedList}>
-          {docs.length === 0 ? (
+          {uploadedThisSession.length === 0 ? (
             <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0' }}>
-              No documents uploaded yet.
+              No documents uploaded yet this session.
             </p>
-          ) : docs.map(doc => (
-            <div key={doc.id} className={styles.uploadedItem}>
-              <div style={{ minWidth: 0 }}>
-                <p className={styles.uploadedName}>📄 {doc.name}</p>
-                <p className={styles.uploadedMeta}>{doc.size} · Added {doc.date}</p>
-              </div>
-              <button
-                className={styles.deleteBtn}
-                onClick={() => setDocs(prev => prev.filter(d => d.id !== doc.id))}
-              >
-                🗑 Remove
-              </button>
+          ) : uploadedThisSession.map((doc, i) => (
+            <div key={i} className={styles.uploadedItem}>
+              <p className={styles.uploadedName}>📄 {doc.name}</p>
+              <p className={styles.uploadedMeta}>Indexed {doc.date}</p>
             </div>
           ))}
         </div>
@@ -208,130 +278,68 @@ const AdminDashboard = () => {
     </>
   );
 
-  const renderUsers = () => (
-    <div className={styles.card}>
-      <p className={styles.cardTitle}>Registered Users ({users.length})</p>
-      <div className={styles.tableWrap}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Queries</th>
-              <th>Joined</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(u => (
-              <tr key={u.id}>
-                <td>{u.name}</td>
-                <td style={{ color: 'var(--text-secondary)' }}>{u.email}</td>
-                <td>{u.queries}</td>
-                <td style={{ color: 'var(--text-secondary)' }}>{u.joined}</td>
-                <td>
-                  <span className={`${styles.statusBadge} ${styles[u.status]}`}>
-                    {u.status === 'active' ? '● Active' : '○ Inactive'}
-                  </span>
-                </td>
-                <td>
-                  <button
-                    className={styles.dangerBtn}
-                    onClick={() => setUsers(prev => prev.filter(x => x.id !== u.id))}
-                  >
-                    Delete
-                  </button>
-                </td>
+  const renderUsers = () => {
+    if (usersLoading) return <p className={styles.pageSub}>Loading…</p>;
+
+    return (
+      <div className={styles.card}>
+        <p className={styles.cardTitle}>Users ({users.length})</p>
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Queries</th>
               </tr>
+            </thead>
+            <tbody>
+              {users.length === 0 ? (
+                <tr><td colSpan={2} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No users yet.</td></tr>
+              ) : users.map(u => (
+                <tr key={u.email}>
+                  <td style={{ color: 'var(--text-secondary)' }}>{u.email}</td>
+                  <td>{u.query_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderStats = () => {
+    if (statsLoading) return <p className={styles.pageSub}>Loading…</p>;
+    if (!stats || !stats.average_scores) {
+      return <p className={styles.pageSub}>No evaluation data yet — run some queries in Chatbot Test first.</p>;
+    }
+
+    const maxDay = Math.max(...Object.values(stats.weekly_query_counts), 1);
+
+    return (
+      <>
+        <div className={styles.statsGrid}>
+          {Object.entries(stats.average_scores).map(([key, val]) => (
+            <div key={key} className={styles.statCard}>
+              <p className={`${styles.statValue} ${styles.accent}`}>{val}%</p>
+              <p className={styles.statLabel}>{SCORE_LABELS[key] || key}</p>
+            </div>
+          ))}
+        </div>
+        <div className={styles.card}>
+          <p className={styles.cardTitle}>Queries by Day ({stats.total_tests_run} test runs logged)</p>
+          <div className={styles.barChart}>
+            {Object.entries(stats.weekly_query_counts).map(([day, count]) => (
+              <div key={day} className={styles.barWrap}>
+                <div className={styles.bar} style={{ height: `${(count / maxDay) * 100}px` }} title={`${count} queries`} />
+                <span className={styles.barLabel}>{day}</span>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  const renderMonitor = () => (
-    <div className={styles.monitorGrid}>
-      <div className={styles.card}>
-        <p className={styles.cardTitle}>Live Activity Log</p>
-        <div className={styles.logList}>
-          {LOGS.map((l, i) => (
-            <div key={i} className={styles.logItem}>
-              <span className={`${styles.logDot} ${styles[l.type]}`} />
-              <span className={styles.logTime}>{l.time}</span>
-              <span className={styles.logMsg}>{l.msg}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className={styles.card}>
-        <p className={styles.cardTitle}>System Status</p>
-        {[
-          { label: 'Vector Store',    status: 'Healthy',  color: 'var(--success)' },
-          { label: 'LLM API',         status: 'Healthy',  color: 'var(--success)' },
-          { label: 'Document Parser', status: 'Healthy',  color: 'var(--success)' },
-          { label: 'Redis Cache',     status: 'Degraded', color: 'var(--warning)' },
-          { label: 'Auth Service',    status: 'Healthy',  color: 'var(--success)' },
-        ].map((s, i) => (
-          <div key={i} style={{
-            display: 'flex', justifyContent: 'space-between',
-            alignItems: 'center', padding: '10px 0',
-            borderBottom: '1px solid var(--border-soft)'
-          }}>
-            <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>{s.label}</span>
-            <span style={{ fontSize: 12, color: s.color, fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-              {s.status}
-            </span>
           </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderStats = () => (
-    <>
-      <div className={styles.statsGrid}>
-        {METRICS.map((m, i) => (
-          <div key={i} className={styles.statCard}>
-            <p className={`${styles.statValue} ${styles.accent}`}>{m.val}%</p>
-            <p className={styles.statLabel}>{m.label}</p>
-          </div>
-        ))}
-      </div>
-      <div className={styles.card}>
-        <p className={styles.cardTitle}>Queries This Week</p>
-        <div className={styles.barChart}>
-          {BAR_DATA.map((b, i) => (
-            <div key={i} className={styles.barWrap}>
-              <div
-                className={styles.bar}
-                style={{ height: `${(b.val / maxBar) * 100}px` }}
-                title={`${b.val} queries`}
-              />
-              <span className={styles.barLabel}>{b.label}</span>
-            </div>
-          ))}
         </div>
-      </div>
-      <div className={styles.card}>
-        <p className={styles.cardTitle}>Model Performance</p>
-        <div className={styles.metricsGrid}>
-          {METRICS.map((m, i) => (
-            <div key={i} className={styles.metricRow}>
-              <div className={styles.metricLabel}>
-                <span>{m.label}</span>
-                <span className={styles.metricVal}>{m.val}%</span>
-              </div>
-              <div className={styles.metricBar}>
-                <div className={styles.metricFill} style={{ width: `${m.val}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </>
-  );
+      </>
+    );
+  };
 
   const renderChatTest = () => (
     <div className={styles.testLayout}>
@@ -352,6 +360,11 @@ const AdminDashboard = () => {
               {m.text}
             </div>
           ))}
+          {testLoading && (
+            <div style={{ alignSelf: 'flex-start', color: 'var(--text-muted)', fontSize: 13 }}>
+              Running retrieval, generation, and scoring…
+            </div>
+          )}
         </div>
         <div className={styles.testInputRow}>
           <input
@@ -360,44 +373,54 @@ const AdminDashboard = () => {
             value={testInput}
             onChange={e => setTestInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleTestSend()}
+            disabled={testLoading}
           />
-          <button className={styles.testSendBtn} onClick={handleTestSend}>Send</button>
+          <button className={styles.testSendBtn} onClick={handleTestSend} disabled={testLoading}>
+            Send
+          </button>
         </div>
       </div>
       <div>
-        <p className={styles.cardTitle} style={{ marginBottom: 'var(--sp-3)' }}>Pipeline Metrics</p>
-        <div className={styles.metricsGrid}>
-          {METRICS.map((m, i) => (
-            <div key={i} className={styles.metricRow}>
-              <div className={styles.metricLabel}>
-                <span>{m.label}</span>
-                <span className={styles.metricVal}>{m.val}%</span>
+        <p className={styles.cardTitle} style={{ marginBottom: 'var(--sp-3)' }}>Last Run — Judge Scores</p>
+        {!lastScores ? (
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Send a query to see scores here.</p>
+        ) : lastScores.error ? (
+          <p style={{ fontSize: 13, color: 'var(--danger)' }}>Judge model returned invalid output.</p>
+        ) : (
+          <div className={styles.metricsGrid}>
+            {Object.entries(SCORE_LABELS).map(([key, label]) => (
+              <div key={key} className={styles.metricRow}>
+                <div className={styles.metricLabel}>
+                  <span>{label}</span>
+                  <span className={styles.metricVal}>{lastScores[key]}%</span>
+                </div>
+                <div className={styles.metricBar}>
+                  <div className={styles.metricFill} style={{ width: `${lastScores[key]}%` }} />
+                </div>
               </div>
-              <div className={styles.metricBar}>
-                <div className={styles.metricFill} style={{ width: `${m.val}%` }} />
+            ))}
+          </div>
+        )}
+
+        {lastLatency && (
+          <div style={{ marginTop: 'var(--sp-5)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+            {[
+              { label: 'Retrieval Time', val: `${lastLatency.retrieval}ms` },
+              { label: 'LLM Latency',    val: `${lastLatency.llm}ms` },
+            ].map((s, i) => (
+              <div key={i} style={{
+                display: 'flex', justifyContent: 'space-between',
+                padding: '8px 0', borderBottom: '1px solid var(--border-soft)',
+                fontSize: 13,
+              }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{s.label}</span>
+                <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
+                  {s.val}
+                </span>
               </div>
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: 'var(--sp-5)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
-          {[
-            { label: 'Retrieval Time', val: '340ms' },
-            { label: 'LLM Latency',    val: '860ms' },
-            { label: 'Total Latency',  val: '1.2s'  },
-            { label: 'Chunks Used',    val: '3 / 5' },
-          ].map((s, i) => (
-            <div key={i} style={{
-              display: 'flex', justifyContent: 'space-between',
-              padding: '8px 0', borderBottom: '1px solid var(--border-soft)',
-              fontSize: 13,
-            }}>
-              <span style={{ color: 'var(--text-secondary)' }}>{s.label}</span>
-              <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-                {s.val}
-              </span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -406,14 +429,11 @@ const AdminDashboard = () => {
     <div className={styles.layout}>
       <Header />
       <div className={styles.body}>
-
-        {/* Overlay */}
         <div
           className={`${styles.overlay} ${sidebarOpen ? styles.visible : ''}`}
           onClick={() => setSidebarOpen(false)}
         />
 
-        {/* Sidebar */}
         <aside className={`${styles.sidebar} ${sidebarOpen ? styles.open : ''}`}>
           <p className={styles.sidebarLabel}>Admin Panel</p>
           {NAV.map(n => (
@@ -428,7 +448,6 @@ const AdminDashboard = () => {
           ))}
         </aside>
 
-        {/* Main */}
         <main className={styles.main}>
           <div className={styles.topBar}>
             <button
@@ -447,11 +466,9 @@ const AdminDashboard = () => {
           {tab === 'overview'  && renderOverview()}
           {tab === 'upload'    && renderUpload()}
           {tab === 'users'     && renderUsers()}
-          {tab === 'monitor'   && renderMonitor()}
           {tab === 'stats'     && renderStats()}
           {tab === 'chattest'  && renderChatTest()}
         </main>
-
       </div>
       <Footer />
     </div>
