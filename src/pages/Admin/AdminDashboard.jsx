@@ -106,7 +106,16 @@ const AdminDashboard = () => {
       .finally(() => setStatsLoading(false));
   }, [tab]);
 
-  /* ── Upload ── */
+  useEffect(() => {
+  if (tab !== 'upload') return;
+  fetch(`${API_BASE}/api/admin/documents`)
+    .then(res => res.json())
+    .then(data => setUploadedThisSession(
+      data.map(d => ({ name: d.filename, date: new Date(d.uploaded_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }))
+    ))
+    .catch(err => console.error('Failed to load documents:', err));
+}, [tab]);
+
   const uploadFile = async (file) => {
     setUploadError('');
     setUploading(true);
@@ -119,12 +128,16 @@ const AdminDashboard = () => {
         body: formData,
       });
       if (!res.ok) throw new Error('Upload failed');
-      const data = await res.json();
 
-      setUploadedThisSession(prev => [
-        { name: data.filename, date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) },
-        ...prev,
-      ]);
+      // Re-fetch the real, persisted list instead of guessing what it looks like
+      const listRes = await fetch(`${API_BASE}/api/admin/documents`);
+      const data = await listRes.json();
+      setUploadedThisSession(
+        data.map(d => ({
+          name: d.filename,
+          date: new Date(d.uploaded_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        }))
+      );
     } catch (err) {
       console.error('Upload failed:', err);
       setUploadError('Upload failed. Check that the file is a valid PDF and try again.');
