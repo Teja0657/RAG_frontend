@@ -9,7 +9,7 @@ const BOT_GREETING = "Hello! I'm your RAG-powered assistant. Ask me anything abo
 const fmt = (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 const ChatPage = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, getAccessTokenSilently } = useAuth();
   const userId = currentUser?.email;
 
   const [chats, setChats]           = useState([]);
@@ -182,9 +182,14 @@ const ChatPage = () => {
     setTyping(true);
 
     try {
+      const token= await getAccessTokenSilently();
+
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+         },
         body: JSON.stringify({
           user_id: userId,
           question: text,
@@ -193,6 +198,7 @@ const ChatPage = () => {
       });
 
       if (!res.ok) throw new Error('Request failed');
+      
       const data = await res.json();
 
       setTyping(false);

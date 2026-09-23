@@ -11,6 +11,7 @@ export const AuthProvider = ({ children }) => {
     isLoading: auth0Loading,
     user: auth0User,
     logout: auth0Logout,
+    getAccessTokenSilently,
   } = useAuth0();
 
   const roles = auth0User?.[ROLES_CLAIM] || [];
@@ -49,6 +50,7 @@ export const AuthProvider = ({ children }) => {
       isLoggedIn,
       isLoading: auth0Loading,
       logout,
+      getAccessTokenSilently,
     }}>
       {children}
     </AuthContext.Provider>
