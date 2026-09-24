@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import LoginPage      from './pages/Login/LoginPage';
@@ -10,6 +10,7 @@ import ChatPage       from './pages/Chat/ChatPage';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import AboutUs        from './pages/AboutUs/AboutUs';
 import ContactUs      from './pages/ContactUs/ContactUs';
+
 
 const Spinner = () => (
   <div style={{
@@ -66,7 +67,6 @@ const AppRoutes = () => {
 };
 
 const App = () => {
-
   useEffect(() => {
     const handlePageShow = (event) => {
       if (event.persisted) {
