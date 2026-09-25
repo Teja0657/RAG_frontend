@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import styles from './Admin.module.css';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const NAV = [
   { id: 'overview', icon: '📊', label: 'Overview'     },
@@ -14,7 +15,7 @@ const NAV = [
 ];
 
 const TAB_INFO = {
-  overview: { title: 'Overview',     sub: 'System summary.'                              },
+  overview: { title: 'Overview',    sub: 'System summary.'                        },
   upload:   { title: 'Documents',    sub: 'Upload documents to be indexed for retrieval.' },
   users:    { title: 'Users',        sub: 'Users who have used the chat assistant.'       },
   stats:    { title: 'Statistics',   sub: 'Judge-model scores from Chatbot Test runs.'    },
@@ -29,6 +30,8 @@ const SCORE_LABELS = {
 };
 
 const AdminDashboard = () => {
+
+  const {getAccessTokenSilently} = useAuth();
   const [tab, setTab] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -41,6 +44,12 @@ const AdminDashboard = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadedThisSession, setUploadedThisSession] = useState([]);
   const [uploadError, setUploadError] = useState('');
+  const [deletingDocumentId, setDeletingDocumentId]=useState(null);
+  const [documentToDelete, setDocumentToDelete]=useState(null);
+  const [updatingDocumentId, setUpdatingDocumentId] = useState(null);
+  const updateFileRef = useRef(null);
+  const updateDocumentRef = useRef(null);
+  const [documentToUpdate, setDocumentToUpdate] = useState(null);
   const fileRef = useRef(null);
 
   // Users
@@ -73,12 +82,29 @@ const AdminDashboard = () => {
     setSidebarOpen(false);
   };
 
+
+  const authFetch = async (url, options = {}) => {
+    const token = await getAccessTokenSilently();
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  };
+
   /* ── Overview ── */
   useEffect(() => {
     if (tab !== 'overview') return;
+
     setOverviewLoading(true);
-    fetch(`${API_BASE}/api/admin/overview`)
-      .then(res => res.json())
+
+    authFetch(`${API_BASE}/api/admin/overview`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load overview');
+        return res.json()
+      })
       .then(setOverview)
       .catch(err => console.error('Failed to load overview:', err))
       .finally(() => setOverviewLoading(false));
@@ -88,8 +114,11 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (tab !== 'users') return;
     setUsersLoading(true);
-    fetch(`${API_BASE}/api/admin/users`)
-      .then(res => res.json())
+    authFetch(`${API_BASE}/api/admin/users`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load users');
+        return res.json();
+      })
       .then(setUsers)
       .catch(err => console.error('Failed to load users:', err))
       .finally(() => setUsersLoading(false));
@@ -99,52 +128,97 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (tab !== 'stats') return;
     setStatsLoading(true);
-    fetch(`${API_BASE}/api/admin/stats`)
-      .then(res => res.json())
+    authFetch(`${API_BASE}/api/admin/stats`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to load stats');
+        return res.json();
+      })
       .then(setStats)
       .catch(err => console.error('Failed to load stats:', err))
       .finally(() => setStatsLoading(false));
   }, [tab]);
 
+  // documents
   useEffect(() => {
   if (tab !== 'upload') return;
-  fetch(`${API_BASE}/api/admin/documents`)
-    .then(res => res.json())
-    .then(data => setUploadedThisSession(
-      data.map(d => ({ name: d.filename, date: new Date(d.uploaded_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }))
-    ))
+
+  authFetch(`${API_BASE}/api/admin/documents`)
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to load documents');
+      return res.json();
+    })
+    .then(data => {
+      setUploadedThisSession(
+        (data.documents || []).map(d => ({
+          id: d.id,
+          name: d.filename,
+          date: new Date(d.created_at).toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          }),
+          version: d.version,
+          status: d.status,
+        }))
+      );
+    })
     .catch(err => console.error('Failed to load documents:', err));
 }, [tab]);
 
+// upload File
   const uploadFile = async (file) => {
-    setUploadError('');
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+  setUploadError('');
+  setUploading(true);
 
-      const res = await fetch(`${API_BASE}/api/admin/documents`, {
-        method: 'POST',
-        body: formData,
-      });
-      if (!res.ok) throw new Error('Upload failed');
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
 
-      // Re-fetch the real, persisted list instead of guessing what it looks like
-      const listRes = await fetch(`${API_BASE}/api/admin/documents`);
-      const data = await listRes.json();
-      setUploadedThisSession(
-        data.map(d => ({
-          name: d.filename,
-          date: new Date(d.uploaded_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-        }))
-      );
-    } catch (err) {
-      console.error('Upload failed:', err);
-      setUploadError('Upload failed. Check that the file is a valid PDF and try again.');
-    } finally {
-      setUploading(false);
+    const res = await authFetch(`${API_BASE}/api/admin/documents`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const result = await res.json();
+
+    if (!res.ok || result.status === 'error') {
+      throw new Error(result.message || 'Upload failed');
     }
-  };
+
+    // Re-fetch the persisted document list
+    const listRes = await authFetch(
+      `${API_BASE}/api/admin/documents`
+    );
+
+    if (!listRes.ok) {
+      throw new Error('Failed to reload documents');
+    }
+
+    const data = await listRes.json();
+
+    setUploadedThisSession(
+      (data.documents || []).map(d => ({
+        id: d.id,
+        name: d.filename,
+        date: new Date(d.created_at).toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        }),
+        version: d.version,
+        status: d.status,
+      }))
+    );
+
+  } catch (err) {
+    console.error('Upload failed:', err);
+    setUploadError(
+      err.message || 'Upload failed. Check that the file is valid and try again.'
+    );
+  } finally {
+    setUploading(false);
+  }
+};
 
   const handleFiles = (files) => {
     const file = files[0]; // one at a time — backend processes a single PDF per request
@@ -168,7 +242,7 @@ const AdminDashboard = () => {
     setLastScores(null);
 
     try {
-      const res = await fetch(`${API_BASE}/api/admin/test-chat`, {
+      const res = await authFetch(`${API_BASE}/api/admin/test-chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: text }),
@@ -245,51 +319,375 @@ const AdminDashboard = () => {
     );
   };
 
-  const renderUpload = () => (
-    <>
-      <div
-        className={`${styles.uploadZone} ${dragging ? styles.dragging : ''}`}
-        onDragOver={e => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => !uploading && fileRef.current.click()}
+  const handleDeleteDocument = async (e, documentId) => {
+    e.stopPropagation();
+    setDocumentToDelete(
+      uploadedThisSession.find(doc => doc.id === documentId) || null
+    );
+  };
+
+  const confirmDeleteDocument = async () => {
+    if (!documentToDelete) return;
+
+    const documentId = documentToDelete.id;
+
+    setDeletingDocumentId(documentId);
+
+    try {
+      const res = await authFetch(
+        `${API_BASE}/api/admin/documents/${documentId}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error('Delete failed');
+      }
+
+      setUploadedThisSession(prev =>
+        prev.filter(doc => doc.id !== documentId)
+      );
+
+      setDocumentToDelete(null);
+
+    } catch (err) {
+      console.error('Delete failed:', err);
+
+      setUploadError(
+        'Failed to delete the document. Please try again.'
+      );
+    } finally {
+      setDeletingDocumentId(null);
+    }
+  };
+
+  const handleUpdateDocument = (e, document) => {
+    e.stopPropagation();
+    updateDocumentRef.current = document;
+    setDocumentToUpdate(document);
+    setUploadError('');
+
+    // Open the dedicated update file picker directly from the user click.
+    // Do not use the normal upload input for this action.
+    updateFileRef.current?.click();
+  };
+
+  const submitDocumentUpdate = async (file) => {
+    const targetDocument = updateDocumentRef.current || documentToUpdate;
+
+    if (!targetDocument || !file) return;
+
+    setUpdatingDocumentId(targetDocument.id);
+    setUploadError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await authFetch(
+        `${API_BASE}/api/admin/documents/${targetDocument.id}`,
+        {
+          method: 'PUT',
+          body: formData,
+        }
+      );
+
+      const result = await res.json();
+
+      if (!res.ok || result.status === 'error') {
+        const errorMsg = typeof result.detail === 'object' ? result.detail.message : (result.detail || result.message || 'Document update failed');
+        throw new Error(errorMsg);
+      }
+
+      const listRes = await authFetch(
+        `${API_BASE}/api/admin/documents`
+      );
+
+      if (!listRes.ok) {
+        throw new Error('Failed to reload documents');
+      }
+
+      const data = await listRes.json();
+
+      setUploadedThisSession(
+        (data.documents || []).map(d => ({
+          id: d.id,
+          name: d.filename,
+          date: new Date(d.updated_at || d.created_at).toLocaleDateString(
+            'en-GB',
+            {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            }
+          ),
+          version: d.version,
+          status: d.status,
+        }))
+      );
+
+      setDocumentToUpdate(null);
+      updateDocumentRef.current = null;
+
+    } catch (err) {
+      console.error('Update failed:', err);
+
+      setUploadError(
+        err.message || 'Failed to update the document. Please try again.'
+      );
+    } finally {
+      setUpdatingDocumentId(null);
+    }
+  };
+ const renderUpload = () => (
+  <>
+    <div
+      className={`${styles.uploadZone} ${dragging ? styles.dragging : ''}`}
+      onDragOver={e => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={handleDrop}
+      onClick={() => !uploading && fileRef.current.click()}
+    >
+      <div className={styles.uploadIcon}>📄</div>
+
+      <p className={styles.uploadTitle}>
+        {uploading
+          ? 'Uploading and indexing…'
+          : 'Drop a file here or click to browse'}
+      </p>
+
+      <p className={styles.uploadSub}>PDF supported</p>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".pdf"
+        style={{ display: 'none' }}
+        onChange={e => handleFiles(e.target.files)}
+        disabled={uploading}
+      />
+    </div>
+
+    {/* Dedicated file input for document replacement.
+        This is intentionally outside the normal upload zone/input. */}
+    <input
+      ref={updateFileRef}
+      type="file"
+      accept=".pdf"
+      style={{ display: 'none' }}
+      onClick={e => e.stopPropagation()}
+      onChange={e => {
+        e.stopPropagation();
+        const file = e.target.files?.[0];
+
+        if (file) {
+          submitDocumentUpdate(file);
+        }
+
+        e.target.value = '';
+      }}
+      disabled={!!updatingDocumentId}
+    />
+
+    {uploadError && (
+      <p
+        style={{
+          color: 'var(--danger)',
+          fontSize: 13,
+          marginTop: 12,
+        }}
       >
-        <div className={styles.uploadIcon}>📄</div>
-        <p className={styles.uploadTitle}>
-          {uploading ? 'Uploading and indexing…' : 'Drop a file here or click to browse'}
-        </p>
-        <p className={styles.uploadSub}>PDF supported</p>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".pdf"
-          style={{ display: 'none' }}
-          onChange={e => handleFiles(e.target.files)}
-          disabled={uploading}
-        />
-      </div>
+        {uploadError}
+      </p>
+    )}
 
-      {uploadError && (
-        <p style={{ color: 'var(--danger)', fontSize: 13, marginTop: 12 }}>{uploadError}</p>
-      )}
+    <div className={styles.card}>
+      <p className={styles.cardTitle}>
+        Uploaded This Session ({uploadedThisSession.length})
+      </p>
 
-      <div className={styles.card}>
-        <p className={styles.cardTitle}>Uploaded This Session ({uploadedThisSession.length})</p>
-        <div className={styles.uploadedList}>
-          {uploadedThisSession.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0' }}>
-              No documents uploaded yet this session.
-            </p>
-          ) : uploadedThisSession.map((doc, i) => (
-            <div key={i} className={styles.uploadedItem}>
-              <p className={styles.uploadedName}>📄 {doc.name}</p>
-              <p className={styles.uploadedMeta}>Indexed {doc.date}</p>
+      <div className={styles.uploadedList}>
+        {uploadedThisSession.length === 0 ? (
+          <p
+            style={{
+              fontSize: 13,
+              color: 'var(--text-muted)',
+              textAlign: 'center',
+              padding: '24px 0',
+            }}
+          >
+            No documents uploaded yet this session.
+          </p>
+        ) : (
+          uploadedThisSession.map(doc => (
+            <div
+              key={doc.id}
+              className={styles.uploadedItem}
+            >
+              <div>
+                <p className={styles.uploadedName}>
+                  📄 {doc.name}
+                </p>
+
+                <p className={styles.uploadedMeta}>
+                  Version {doc.version} · {doc.status} · Indexed {doc.date}
+                </p>
+              </div>
+
+              <button
+                  type="button"
+                  onClick={(e) => handleUpdateDocument(e, doc)}
+                  disabled={updatingDocumentId === doc.id}
+                  style={{
+                    padding: '6px 10px',
+                    border: '1px solid var(--border-soft)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'transparent',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                    opacity: updatingDocumentId === doc.id ? 0.6 : 1,
+                  }}
+                >
+                  {updatingDocumentId === doc.id
+                    ? 'Updating…'
+                    : 'Update'}
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => handleDeleteDocument(e, doc.id)}
+                disabled={deletingDocumentId === doc.id}
+                style={{
+                  marginLeft: 'auto',
+                  padding: '6px 10px',
+                  border: '1px solid var(--border-soft)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'transparent',
+                  color: 'var(--danger)',
+                  cursor:
+                    deletingDocumentId === doc.id
+                      ? 'not-allowed'
+                      : 'pointer',
+                  opacity:
+                    deletingDocumentId === doc.id ? 0.6 : 1,
+                }}
+              >
+                {deletingDocumentId === doc.id
+                  ? 'Deleting…'
+                  : 'Delete'}
+              </button>
             </div>
-          ))}
-        </div>
+          ))
+        )}
       </div>
-    </>
-  );
+    </div>
+    {documentToDelete && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0, 0, 0, 0.55)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+      padding: '20px',
+    }}
+    onClick={() =>
+      !deletingDocumentId && setDocumentToDelete(null)
+    }
+  >
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '420px',
+        background: 'var(--bg-surface)',
+        border: '1px solid var(--border-soft)',
+        borderRadius: 'var(--radius-md)',
+        padding: '24px',
+        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
+      }}
+      onClick={e => e.stopPropagation()}
+    >
+      <p
+        style={{
+          margin: 0,
+          fontSize: 18,
+          fontWeight: 600,
+          color: 'var(--text-primary)',
+        }}
+      >
+        Delete Document
+      </p>
+
+      <p
+        style={{
+          marginTop: 12,
+          fontSize: 14,
+          lineHeight: 1.5,
+          color: 'var(--text-secondary)',
+        }}
+      >
+        Are you sure you want to delete{' '}
+        <strong>{documentToDelete.name}</strong>?
+        <br />
+        This will remove the document and its indexed chunks.
+      </p>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: '10px',
+          marginTop: 24,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setDocumentToDelete(null)}
+          disabled={!!deletingDocumentId}
+          style={{
+            padding: '8px 14px',
+            border: '1px solid var(--border-soft)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'transparent',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          onClick={confirmDeleteDocument}
+          disabled={!!deletingDocumentId}
+          style={{
+            padding: '8px 14px',
+            border: 'none',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--danger)',
+            color: '#fff',
+            cursor: deletingDocumentId
+              ? 'not-allowed'
+              : 'pointer',
+            opacity: deletingDocumentId ? 0.6 : 1,
+          }}
+        >
+          {deletingDocumentId
+            ? 'Deleting…'
+            : 'Delete'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+  </>
+);
 
   const renderUsers = () => {
     if (usersLoading) return <p className={styles.pageSub}>Loading…</p>;
