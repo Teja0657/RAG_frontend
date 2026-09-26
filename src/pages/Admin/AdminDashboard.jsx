@@ -111,16 +111,24 @@ const AdminDashboard = () => {
   }, [tab]);
 
   /* ── Users ── */
+
   useEffect(() => {
     if (tab !== 'users') return;
+
     setUsersLoading(true);
+
     authFetch(`${API_BASE}/api/admin/users`)
       .then(res => {
         if (!res.ok) throw new Error('Failed to load users');
         return res.json();
       })
-      .then(setUsers)
-      .catch(err => console.error('Failed to load users:', err))
+      .then(data => {
+        setUsers(data.users || []);
+      })
+      .catch(err => {
+        console.error('Failed to load users:', err);
+        setUsers([]);
+      })
       .finally(() => setUsersLoading(false));
   }, [tab]);
 
@@ -707,7 +715,7 @@ const AdminDashboard = () => {
               {users.length === 0 ? (
                 <tr><td colSpan={2} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No users yet.</td></tr>
               ) : users.map(u => (
-                <tr key={u.email}>
+                <tr key={u.user_id}>
                   <td style={{ color: 'var(--text-secondary)' }}>{u.email}</td>
                   <td>{u.query_count}</td>
                 </tr>
