@@ -238,11 +238,13 @@ const ChatPage = () => {
     }
   };
 
-  /* ── Send: real API call ── */
+  /* ── Send: streams the answer token-by-token via /api/chat/stream ── */
   const handleSend = async () => {
     const text = input.trim();
 
     if (!text || typing) return;
+
+    const wasNewConversation = !activeChatId;
 
     setMessages(prev => [
       ...prev,
@@ -255,7 +257,7 @@ const ChatPage = () => {
     try {
       const token = await getAccessTokenSilently();
 
-      const res = await fetch(`${API_BASE}/api/chat`, {
+      const res = await fetch(`${API_BASE}/api/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -267,29 +269,79 @@ const ChatPage = () => {
         }),
       });
 
-      if (!res.ok) throw new Error('Request failed');
+      if (!res.ok || !res.body) throw new Error('Request failed');
 
-      const data = await res.json();
+      const conversationId = Number(res.headers.get('X-Conversation-Id')) || activeChatId;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let botText = '';
+      let botMsgId = null;
+      let streamError = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const events = buffer.split('\n\n');
+        buffer = events.pop(); // last chunk may be incomplete, keep for next read
+
+        for (const rawEvent of events) {
+          let eventType = 'message';
+          const dataLines = [];
+
+          for (const line of rawEvent.split('\n')) {
+            if (line.startsWith('event:')) eventType = line.slice(6).trim();
+            else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+          }
+
+          const data = dataLines.join('\n');
+
+          if (eventType === 'token') {
+            botText += data;
+
+            if (botMsgId === null) {
+              botMsgId = Date.now() + 1;
+              setTyping(false);
+              setMessages(prev => [
+                ...prev,
+                { id: botMsgId, role: 'bot', text: botText, time: new Date() }
+              ]);
+            } else {
+              const id = botMsgId;
+              setMessages(prev => prev.map(m => (m.id === id ? { ...m, text: botText } : m)));
+            }
+          } else if (eventType === 'error') {
+            streamError = data || 'Streaming error';
+          }
+        }
+      }
 
       setTyping(false);
 
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: 'bot',
-          text: data.answer,
-          time: new Date()
-        }
-      ]);
+      if (streamError || botMsgId === null) {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            role: 'bot',
+            text: 'Something went wrong reaching the assistant. Please try again.',
+            time: new Date()
+          }
+        ]);
+        return;
+      }
 
       // First message in a new conversation — add it to the sidebar list
-      if (!activeChatId) {
-        setActive(data.conversation_id);
+      if (wasNewConversation && conversationId) {
+        setActive(conversationId);
 
         setChats(prev => [
           {
-            id: data.conversation_id,
+            id: conversationId,
             title: text.slice(0, 50),
             pinned: false,
             created_at: new Date().toISOString()

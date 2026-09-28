@@ -18,16 +18,20 @@ const TAB_INFO = {
   overview: { title: 'Overview',    sub: 'System summary.'                        },
   upload:   { title: 'Documents',    sub: 'Upload documents to be indexed for retrieval.' },
   users:    { title: 'Users',        sub: 'Users who have used the chat assistant.'       },
-  stats:    { title: 'Statistics',   sub: 'Judge-model scores from Chatbot Test runs.'    },
-  chattest: { title: 'Chatbot Test', sub: 'Test the RAG pipeline and score its output.'   },
+  stats:    { title: 'Statistics',   sub: 'LangSmith evaluation results for the Hybrid-RAG dataset.' },
+  chattest: { title: 'Chatbot Test', sub: 'Ask the RAG pipeline a question. Traced automatically in LangSmith.' },
 };
 
-const SCORE_LABELS = {
-  retrieval_accuracy: 'Retrieval Accuracy',
-  context_precision:  'Context Precision',
-  answer_relevance:   'Answer Relevance',
-  faithfulness:       'Faithfulness Score',
+const EVAL_METRIC_LABELS = {
+  answer_correctness: 'Answer Correctness',
+  faithfulness:        'Faithfulness',
+  answer_relevance:     'Answer Relevance',
+  retrieval_quality:    'Retrieval Quality',
+  abstention:           'Abstention Accuracy',
 };
+
+// Below 90% is worth a second look, below 70% is a real problem.
+const scoreTier = (score) => (score < 70 ? 'danger' : score < 90 ? 'warn' : '');
 
 const AdminDashboard = () => {
 
@@ -59,15 +63,18 @@ const AdminDashboard = () => {
   // Statistics
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [runningEvaluation, setRunningEvaluation] = useState(false);
+  const [evaluationError, setEvaluationError] = useState('');
 
   // Chatbot Test
   const [testInput, setTestInput] = useState('');
   const [testMsgs, setTestMsgs] = useState([
-    { role: 'bot', text: 'Admin test mode active. Send a query to evaluate the RAG pipeline.' }
+    { role: 'bot', text: 'Admin test mode active. Send a query to test the RAG pipeline.' }
   ]);
   const [testLoading, setTestLoading] = useState(false);
-  const [lastScores, setLastScores] = useState(null);
-  const [lastLatency, setLastLatency] = useState(null);
+  const [lastElapsedMs, setLastElapsedMs] = useState(null);
+  const [lastTimings, setLastTimings] = useState(null);
+  const [lastTraceUrl, setLastTraceUrl] = useState(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -239,7 +246,7 @@ const AdminDashboard = () => {
     handleFiles(e.dataTransfer.files);
   };
 
-  /* ── Chatbot test ── */
+  /* ── Chatbot test — a single live probe against the RAG pipeline ── */
   const handleTestSend = async () => {
     const text = testInput.trim();
     if (!text || testLoading) return;
@@ -247,7 +254,6 @@ const AdminDashboard = () => {
     setTestMsgs(prev => [...prev, { role: 'user', text }]);
     setTestInput('');
     setTestLoading(true);
-    setLastScores(null);
 
     try {
       const res = await authFetch(`${API_BASE}/api/admin/test-chat`, {
@@ -259,13 +265,35 @@ const AdminDashboard = () => {
       const data = await res.json();
 
       setTestMsgs(prev => [...prev, { role: 'bot', text: data.answer }]);
-      setLastScores(data.scores);
-      setLastLatency({ retrieval: data.retrieval_time_ms, llm: data.llm_latency_ms });
+      setLastElapsedMs(data.elapsed_ms ?? null);
+      setLastTimings(data.timings ?? null);
+      setLastTraceUrl(data.trace_url ?? null);
     } catch (err) {
       console.error('Test chat failed:', err);
       setTestMsgs(prev => [...prev, { role: 'bot', text: 'Test request failed. Check the backend logs.' }]);
     } finally {
       setTestLoading(false);
+    }
+  };
+
+  /* ── Evaluation — runs the 35-question LangSmith dataset (1-3 min) ── */
+  const handleRunEvaluation = async () => {
+    setRunningEvaluation(true);
+    setEvaluationError('');
+
+    try {
+      const res = await authFetch(`${API_BASE}/api/admin/evaluation/run`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error('Evaluation run failed');
+
+      const statsRes = await authFetch(`${API_BASE}/api/admin/stats`);
+      if (statsRes.ok) setStats(await statsRes.json());
+    } catch (err) {
+      console.error('Evaluation run failed:', err);
+      setEvaluationError('Evaluation run failed. Check the backend logs.');
+    } finally {
+      setRunningEvaluation(false);
     }
   };
 
@@ -729,32 +757,93 @@ const AdminDashboard = () => {
 
   const renderStats = () => {
     if (statsLoading) return <p className={styles.pageSub}>Loading…</p>;
-    if (!stats || !stats.average_scores) {
-      return <p className={styles.pageSub}>No evaluation data yet — run some queries in Chatbot Test first.</p>;
-    }
+    if (!stats) return <p className={styles.pageSub}>Failed to load statistics.</p>;
 
-    const maxDay = Math.max(...Object.values(stats.weekly_query_counts), 1);
+    const evaluation = stats.evaluation;
 
     return (
       <>
         <div className={styles.statsGrid}>
-          {Object.entries(stats.average_scores).map(([key, val]) => (
-            <div key={key} className={styles.statCard}>
-              <p className={`${styles.statValue} ${styles.accent}`}>{val}%</p>
-              <p className={styles.statLabel}>{SCORE_LABELS[key] || key}</p>
-            </div>
-          ))}
-        </div>
-        <div className={styles.card}>
-          <p className={styles.cardTitle}>Queries by Day ({stats.total_tests_run} test runs logged)</p>
-          <div className={styles.barChart}>
-            {Object.entries(stats.weekly_query_counts).map(([day, count]) => (
-              <div key={day} className={styles.barWrap}>
-                <div className={styles.bar} style={{ height: `${(count / maxDay) * 100}px` }} title={`${count} queries`} />
-                <span className={styles.barLabel}>{day}</span>
-              </div>
-            ))}
+          <div className={styles.statCard}>
+            <p className={`${styles.statValue} ${styles.accent}`}>{stats.documents?.total ?? 0}</p>
+            <p className={styles.statLabel}>Documents</p>
           </div>
+          <div className={styles.statCard}>
+            <p className={styles.statValue}>{stats.rag?.indexed_chunks ?? 0}</p>
+            <p className={styles.statLabel}>Indexed chunks</p>
+          </div>
+          <div className={styles.statCard}>
+            <p className={`${styles.statValue} ${styles.accent}`}>{stats.queries?.total ?? 0}</p>
+            <p className={styles.statLabel}>Total queries</p>
+          </div>
+        </div>
+
+        <div className={styles.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--sp-3)' }}>
+            <p className={styles.cardTitle} style={{ margin: 0 }}>Evaluation</p>
+            <button
+              className={styles.testSendBtn}
+              onClick={handleRunEvaluation}
+              disabled={runningEvaluation}
+            >
+              {runningEvaluation ? 'Running… (1-3 min)' : 'Run Evaluation'}
+            </button>
+          </div>
+
+          {evaluationError && (
+            <p style={{ color: 'var(--danger)', fontSize: 13, marginTop: 12 }}>{evaluationError}</p>
+          )}
+
+          {!evaluation ? (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 16 }}>
+              No evaluation has been run yet. Click "Run Evaluation" to score the RAG pipeline
+              against the Hybrid-RAG-Evaluation dataset in LangSmith.
+            </p>
+          ) : (
+            <>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
+                Run <strong>{evaluation.run_id}</strong> · {evaluation.total_examples} examples ·{' '}
+                {new Date(evaluation.evaluated_at).toLocaleString()}
+                {evaluation.run_url && (
+                  <>
+                    {' · '}
+                    <a
+                      className={styles.externalLink}
+                      href={evaluation.run_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View in LangSmith ↗
+                    </a>
+                  </>
+                )}
+              </p>
+
+              <div className={styles.metricsGrid} style={{ marginTop: 'var(--sp-4)' }}>
+                {Object.entries(EVAL_METRIC_LABELS).map(([key, label]) => {
+                  const score = evaluation.metrics[key];
+                  if (score === undefined) return null;
+
+                  const tier = scoreTier(score);
+
+                  return (
+                    <div key={key} className={styles.metricRow}>
+                      <div className={styles.metricLabel}>
+                        <span>{label}</span>
+                        <span className={styles.metricVal}>{score}%</span>
+                      </div>
+                      <div className={styles.metricBar}>
+                        <div
+                          className={`${styles.metricFill} ${tier ? styles[tier] : ''}`}
+                          style={{ width: `${score}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       </>
     );
@@ -781,7 +870,7 @@ const AdminDashboard = () => {
           ))}
           {testLoading && (
             <div style={{ alignSelf: 'flex-start', color: 'var(--text-muted)', fontSize: 13 }}>
-              Running retrieval, generation, and scoring…
+              Running retrieval, reranking, and generation…
             </div>
           )}
         </div>
@@ -800,32 +889,22 @@ const AdminDashboard = () => {
         </div>
       </div>
       <div>
-        <p className={styles.cardTitle} style={{ marginBottom: 'var(--sp-3)' }}>Last Run — Judge Scores</p>
-        {!lastScores ? (
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Send a query to see scores here.</p>
-        ) : lastScores.error ? (
-          <p style={{ fontSize: 13, color: 'var(--danger)' }}>Judge model returned invalid output.</p>
-        ) : (
-          <div className={styles.metricsGrid}>
-            {Object.entries(SCORE_LABELS).map(([key, label]) => (
-              <div key={key} className={styles.metricRow}>
-                <div className={styles.metricLabel}>
-                  <span>{label}</span>
-                  <span className={styles.metricVal}>{lastScores[key]}%</span>
-                </div>
-                <div className={styles.metricBar}>
-                  <div className={styles.metricFill} style={{ width: `${lastScores[key]}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <p className={styles.cardTitle} style={{ marginBottom: 'var(--sp-3)' }}>About This Test</p>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          Sends a single question straight to the Hybrid RAG pipeline (retrieval → reranking →
+          generation) without creating a saved conversation. Every call is traced automatically
+          in LangSmith — this does not run the evaluation dataset or affect the Statistics page.
+        </p>
 
-        {lastLatency && (
-          <div style={{ marginTop: 'var(--sp-5)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+        {lastElapsedMs !== null && (
+          <div style={{ marginTop: 'var(--sp-5)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' }}>
             {[
-              { label: 'Retrieval Time', val: `${lastLatency.retrieval}ms` },
-              { label: 'LLM Latency',    val: `${lastLatency.llm}ms` },
+              { label: 'Total Response Time', val: `${lastElapsedMs}ms` },
+              ...(lastTimings ? [
+                { label: 'Retrieval',  val: `${lastTimings.retrieval_ms}ms` },
+                { label: 'Reranking',  val: `${lastTimings.reranking_ms}ms` },
+                { label: 'Generation', val: `${lastTimings.generation_ms}ms` },
+              ] : []),
             ].map((s, i) => (
               <div key={i} style={{
                 display: 'flex', justifyContent: 'space-between',
@@ -839,6 +918,18 @@ const AdminDashboard = () => {
               </div>
             ))}
           </div>
+        )}
+
+        {lastTraceUrl && (
+          <a
+            className={styles.externalLink}
+            href={lastTraceUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={{ display: 'inline-block', marginTop: 'var(--sp-4)' }}
+          >
+            View trace in LangSmith ↗
+          </a>
         )}
       </div>
     </div>
