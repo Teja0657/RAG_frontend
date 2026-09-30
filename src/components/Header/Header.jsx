@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { Pencil, KeyRound, LogOut, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import styles from './Header.module.css';
 
@@ -125,7 +126,9 @@ const Header = ({ showNav = true }) => {
                 {initials}
               </div>
               <span className={styles.profileName}>{displayName}</span>
-              <span className={styles.chevron}>{open ? '▲' : '▼'}</span>
+              <span className={styles.chevron}>
+                {open ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              </span>
             </button>
 
             {/* Dropdown */}
@@ -139,20 +142,20 @@ const Header = ({ showNav = true }) => {
                   className={styles.dropdownItem}
                   onClick={() => setPanel('edit')}
                 >
-                  ✏️ Edit Profile
+                  <Pencil size={14} /> Edit Profile
                 </button>
                 <button
                   className={styles.dropdownItem}
                   onClick={() => setPanel('reset')}
                 >
-                  🔑 Reset Password
+                  <KeyRound size={14} /> Reset Password
                 </button>
                 <div className={styles.dropdownDivider} />
                 <button
                   className={`${styles.dropdownItem} ${styles.danger}`}
                   onClick={handleLogout}
                 >
-                  🚪 Sign out
+                  <LogOut size={14} /> Sign out
                 </button>
               </div>
             )}
@@ -163,7 +166,7 @@ const Header = ({ showNav = true }) => {
                 <div className={styles.subPanel}>
                   <p className={styles.subTitle}>Edit Profile</p>
                   {editSuccess && (
-                    <p className={styles.subSuccess}>✅ Profile updated!</p>
+                    <p className={styles.subSuccess}><CheckCircle2 size={14} /> Profile updated!</p>
                   )}
                   {!editSuccess && (
                     <>
@@ -203,7 +206,7 @@ const Header = ({ showNav = true }) => {
                 <div className={styles.subPanel}>
                   <p className={styles.subTitle}>Reset Password</p>
                   {resetSuccess ? (
-                    <p className={styles.subSuccess}>✅ Password updated!</p>
+                    <p className={styles.subSuccess}><CheckCircle2 size={14} /> Password updated!</p>
                   ) : (
                     <>
                       {resetError && (

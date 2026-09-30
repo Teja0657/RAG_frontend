@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
+import { Pin, Pencil, Trash2, Menu, X, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
+import { stripMarkdown } from '../../utils/markdown';
 import styles from './Chat.module.css';
 
 const API_BASE = 'http://localhost:8000';
@@ -383,7 +385,7 @@ const ChatPage = () => {
       onClick={() => handleSelectChat(chat.id)}
     >
       <div className={styles.chatItemLeft}>
-        {chat.pinned && <span className={styles.pinIcon}>📌</span>}
+        {chat.pinned && <Pin size={12} className={styles.pinIcon} fill="currentColor" />}
 
         {renamingId === chat.id ? (
           <input
@@ -409,7 +411,7 @@ const ChatPage = () => {
             handlePin(chat.id);
           }}
         >
-          {chat.pinned ? '📍' : '📌'}
+          <Pin size={13} fill={chat.pinned ? 'currentColor' : 'none'} />
         </button>
 
         <button
@@ -420,7 +422,7 @@ const ChatPage = () => {
             startRename(chat.id, chat.title);
           }}
         >
-          ✏️
+          <Pencil size={13} />
         </button>
 
         <button
@@ -431,7 +433,7 @@ const ChatPage = () => {
             handleDelete(chat.id);
           }}
         >
-          🗑
+          <Trash2 size={13} />
         </button>
       </div>
     </div>
@@ -468,16 +470,7 @@ const ChatPage = () => {
 
           <div className={styles.sidebarScroll}>
             {loadingChats ? (
-              <p
-                style={{
-                  fontSize: 12,
-                  color: 'var(--text-muted)',
-                  textAlign: 'center',
-                  marginTop: 24
-                }}
-              >
-                Loading chats…
-              </p>
+              <p className={styles.sidebarNote}>Loading chats…</p>
             ) : (
               <>
                 {pinnedChats.length > 0 && (
@@ -499,16 +492,7 @@ const ChatPage = () => {
                 )}
 
                 {chats.length === 0 && (
-                  <p
-                    style={{
-                      fontSize: 12,
-                      color: 'var(--text-muted)',
-                      textAlign: 'center',
-                      marginTop: 24
-                    }}
-                  >
-                    No chats yet. Start a new one!
-                  </p>
+                  <p className={styles.sidebarNote}>No chats yet. Start a new one!</p>
                 )}
               </>
             )}
@@ -523,7 +507,7 @@ const ChatPage = () => {
                 onClick={() => setSidebarOpen(prev => !prev)}
                 aria-label="Toggle sidebar"
               >
-                {sidebarOpen ? '✕' : '☰'}
+                {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
               </button>
 
               <span className={styles.chatName}>
@@ -537,7 +521,7 @@ const ChatPage = () => {
           <div className={styles.messages}>
             {messages.length === 0 ? (
               <div className={styles.emptyState}>
-                <div className={styles.emptyIcon}>💬</div>
+                <div className={styles.emptyIcon}><MessageSquare size={22} /></div>
                 <p className={styles.emptyTitle}>Start a conversation</p>
                 <p className={styles.emptySubtitle}>
                   Ask anything about your documents and get grounded answers.
@@ -563,7 +547,7 @@ const ChatPage = () => {
                         msg.role === 'bot' ? styles.bot : styles.user
                       }`}
                     >
-                      {msg.text}
+                      {msg.role === 'bot' ? stripMarkdown(msg.text) : msg.text}
                     </div>
 
                     <p className={styles.msgTime}>{fmt(msg.time)}</p>

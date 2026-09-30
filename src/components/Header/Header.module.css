@@ -282,9 +282,12 @@
 }
 
 .subSuccess {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
   font-size: 13px;
   color: var(--success);
-  text-align: center;
   padding: var(--sp-3) 0;
 }
 

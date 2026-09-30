@@ -1,17 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
+import {
+  LayoutDashboard, FolderOpen, Users as UsersIcon, TrendingUp, Bot,
+  Menu, X, UploadCloud, FileText,
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
+import { stripMarkdown } from '../../utils/markdown';
 import styles from './Admin.module.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const NAV = [
-  { id: 'overview', icon: '📊', label: 'Overview'     },
-  { id: 'upload',   icon: '📁', label: 'Documents'    },
-  { id: 'users',    icon: '👥', label: 'Users'        },
-  { id: 'stats',    icon: '📈', label: 'Statistics'   },
-  { id: 'chattest', icon: '🤖', label: 'Chatbot Test' },
+  { id: 'overview', icon: LayoutDashboard, label: 'Overview'     },
+  { id: 'upload',   icon: FolderOpen,      label: 'Documents'    },
+  { id: 'users',    icon: UsersIcon,       label: 'Users'        },
+  { id: 'stats',    icon: TrendingUp,      label: 'Statistics'   },
+  { id: 'chattest', icon: Bot,             label: 'Chatbot Test' },
 ];
 
 const TAB_INFO = {
@@ -337,9 +342,7 @@ const AdminDashboard = () => {
           <p className={styles.cardTitle}>Recent Activity</p>
           <div className={styles.logList}>
             {overview.recent_activity.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
-                No queries yet.
-              </p>
+              <p className={styles.emptyNote}>No queries yet.</p>
             ) : overview.recent_activity.map((a, i) => (
               <div key={i} className={styles.logItem}>
                 <span className={styles.logDot} />
@@ -488,7 +491,7 @@ const AdminDashboard = () => {
       onDrop={handleDrop}
       onClick={() => !uploading && fileRef.current.click()}
     >
-      <div className={styles.uploadIcon}>📄</div>
+      <div className={styles.uploadIcon}><UploadCloud size={30} /></div>
 
       <p className={styles.uploadTitle}>
         {uploading
@@ -530,15 +533,7 @@ const AdminDashboard = () => {
     />
 
     {uploadError && (
-      <p
-        style={{
-          color: 'var(--danger)',
-          fontSize: 13,
-          marginTop: 12,
-        }}
-      >
-        {uploadError}
-      </p>
+      <p className={styles.errorText}>{uploadError}</p>
     )}
 
     <div className={styles.card}>
@@ -548,16 +543,7 @@ const AdminDashboard = () => {
 
       <div className={styles.uploadedList}>
         {uploadedThisSession.length === 0 ? (
-          <p
-            style={{
-              fontSize: 13,
-              color: 'var(--text-muted)',
-              textAlign: 'center',
-              padding: '24px 0',
-            }}
-          >
-            No documents uploaded yet this session.
-          </p>
+          <p className={styles.emptyNote}>No documents uploaded yet this session.</p>
         ) : (
           uploadedThisSession.map(doc => (
             <div
@@ -566,7 +552,7 @@ const AdminDashboard = () => {
             >
               <div>
                 <p className={styles.uploadedName}>
-                  📄 {doc.name}
+                  <FileText size={14} /> {doc.name}
                 </p>
 
                 <p className={styles.uploadedMeta}>
@@ -574,48 +560,29 @@ const AdminDashboard = () => {
                 </p>
               </div>
 
-              <button
+              <div className={styles.docActions}>
+                <button
                   type="button"
+                  className={styles.updateBtn}
                   onClick={(e) => handleUpdateDocument(e, doc)}
                   disabled={updatingDocumentId === doc.id}
-                  style={{
-                    padding: '6px 10px',
-                    border: '1px solid var(--border-soft)',
-                    borderRadius: 'var(--radius-sm)',
-                    background: 'transparent',
-                    color: 'var(--text-primary)',
-                    cursor: 'pointer',
-                    opacity: updatingDocumentId === doc.id ? 0.6 : 1,
-                  }}
                 >
                   {updatingDocumentId === doc.id
                     ? 'Updating…'
                     : 'Update'}
-              </button>
+                </button>
 
-              <button
-                type="button"
-                onClick={(e) => handleDeleteDocument(e, doc.id)}
-                disabled={deletingDocumentId === doc.id}
-                style={{
-                  marginLeft: 'auto',
-                  padding: '6px 10px',
-                  border: '1px solid var(--border-soft)',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'transparent',
-                  color: 'var(--danger)',
-                  cursor:
-                    deletingDocumentId === doc.id
-                      ? 'not-allowed'
-                      : 'pointer',
-                  opacity:
-                    deletingDocumentId === doc.id ? 0.6 : 1,
-                }}
-              >
-                {deletingDocumentId === doc.id
-                  ? 'Deleting…'
-                  : 'Delete'}
-              </button>
+                <button
+                  type="button"
+                  className={styles.deleteBtn}
+                  onClick={(e) => handleDeleteDocument(e, doc.id)}
+                  disabled={deletingDocumentId === doc.id}
+                >
+                  {deletingDocumentId === doc.id
+                    ? 'Deleting…'
+                    : 'Delete'}
+                </button>
+              </div>
             </div>
           ))
         )}
@@ -623,96 +590,39 @@ const AdminDashboard = () => {
     </div>
     {documentToDelete && (
   <div
-    style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0, 0, 0, 0.55)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '20px',
-    }}
+    className={styles.modalOverlay}
     onClick={() =>
       !deletingDocumentId && setDocumentToDelete(null)
     }
   >
     <div
-      style={{
-        width: '100%',
-        maxWidth: '420px',
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border-soft)',
-        borderRadius: 'var(--radius-md)',
-        padding: '24px',
-        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
-      }}
+      className={styles.modalBox}
       onClick={e => e.stopPropagation()}
     >
-      <p
-        style={{
-          margin: 0,
-          fontSize: 18,
-          fontWeight: 600,
-          color: 'var(--text-primary)',
-        }}
-      >
-        Delete Document
-      </p>
+      <p className={styles.modalTitle}>Delete Document</p>
 
-      <p
-        style={{
-          marginTop: 12,
-          fontSize: 14,
-          lineHeight: 1.5,
-          color: 'var(--text-secondary)',
-        }}
-      >
+      <p className={styles.modalBody}>
         Are you sure you want to delete{' '}
         <strong>{documentToDelete.name}</strong>?
         <br />
         This will remove the document and its indexed chunks.
       </p>
 
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: '10px',
-          marginTop: 24,
-        }}
-      >
+      <div className={styles.modalActions}>
         <button
           type="button"
+          className={styles.modalCancelBtn}
           onClick={() => setDocumentToDelete(null)}
           disabled={!!deletingDocumentId}
-          style={{
-            padding: '8px 14px',
-            border: '1px solid var(--border-soft)',
-            borderRadius: 'var(--radius-sm)',
-            background: 'transparent',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer',
-          }}
         >
           Cancel
         </button>
 
         <button
           type="button"
+          className={styles.modalDeleteBtn}
           onClick={confirmDeleteDocument}
           disabled={!!deletingDocumentId}
-          style={{
-            padding: '8px 14px',
-            border: 'none',
-            borderRadius: 'var(--radius-sm)',
-            background: 'var(--danger)',
-            color: '#fff',
-            cursor: deletingDocumentId
-              ? 'not-allowed'
-              : 'pointer',
-            opacity: deletingDocumentId ? 0.6 : 1,
-          }}
         >
           {deletingDocumentId
             ? 'Deleting…'
@@ -791,7 +701,7 @@ const AdminDashboard = () => {
           </div>
 
           {evaluationError && (
-            <p style={{ color: 'var(--danger)', fontSize: 13, marginTop: 12 }}>{evaluationError}</p>
+            <p className={styles.errorText}>{evaluationError}</p>
           )}
 
           {!evaluation ? (
@@ -855,21 +765,15 @@ const AdminDashboard = () => {
         <p className={styles.cardTitle} style={{ marginBottom: 'var(--sp-3)' }}>Test Chat</p>
         <div className={styles.testMessages}>
           {testMsgs.map((m, i) => (
-            <div key={i} style={{
-              alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-              maxWidth: '85%',
-              background: m.role === 'user' ? 'var(--admin-accent)' : 'var(--bg-surface)',
-              border: m.role === 'bot' ? '1px solid var(--border-soft)' : 'none',
-              color: m.role === 'user' ? '#fff' : 'var(--text-primary)',
-              padding: '8px 12px',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: 13, lineHeight: 1.5,
-            }}>
-              {m.text}
+            <div
+              key={i}
+              className={`${styles.testBubble} ${m.role === 'user' ? styles.user : styles.bot}`}
+            >
+              {m.role === 'bot' ? stripMarkdown(m.text) : m.text}
             </div>
           ))}
           {testLoading && (
-            <div style={{ alignSelf: 'flex-start', color: 'var(--text-muted)', fontSize: 13 }}>
+            <div className={styles.testTyping}>
               Running retrieval, reranking, and generation…
             </div>
           )}
@@ -897,7 +801,7 @@ const AdminDashboard = () => {
         </p>
 
         {lastElapsedMs !== null && (
-          <div style={{ marginTop: 'var(--sp-5)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)' }}>
+          <div className={styles.timingList}>
             {[
               { label: 'Total Response Time', val: `${lastElapsedMs}ms` },
               ...(lastTimings ? [
@@ -906,15 +810,9 @@ const AdminDashboard = () => {
                 { label: 'Generation', val: `${lastTimings.generation_ms}ms` },
               ] : []),
             ].map((s, i) => (
-              <div key={i} style={{
-                display: 'flex', justifyContent: 'space-between',
-                padding: '8px 0', borderBottom: '1px solid var(--border-soft)',
-                fontSize: 13,
-              }}>
-                <span style={{ color: 'var(--text-secondary)' }}>{s.label}</span>
-                <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-ui)', fontWeight: 500 }}>
-                  {s.val}
-                </span>
+              <div key={i} className={styles.timingRow}>
+                <span className={styles.timingLabel}>{s.label}</span>
+                <span className={styles.timingVal}>{s.val}</span>
               </div>
             ))}
           </div>
@@ -952,7 +850,7 @@ const AdminDashboard = () => {
               className={`${styles.navItem} ${tab === n.id ? styles.active : ''}`}
               onClick={() => handleTabChange(n.id)}
             >
-              <span className={styles.navIcon}>{n.icon}</span>
+              <span className={styles.navIcon}><n.icon size={16} /></span>
               {n.label}
             </button>
           ))}
@@ -965,7 +863,7 @@ const AdminDashboard = () => {
               onClick={() => setSidebarOpen(prev => !prev)}
               aria-label="Toggle sidebar"
             >
-              {sidebarOpen ? '✕' : '☰'}
+              {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
             <div>
               <h1 className={styles.pageTitle}>{TAB_INFO[tab].title}</h1>

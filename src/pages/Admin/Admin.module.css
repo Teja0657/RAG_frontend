@@ -69,9 +69,10 @@
 }
 
 .navIcon {
-  font-size: 15px;
   width: 20px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
@@ -200,7 +201,9 @@
 }
 
 .uploadIcon {
-  font-size: 32px;
+  display: flex;
+  justify-content: center;
+  color: var(--admin-accent);
   margin-bottom: var(--sp-3);
 }
 
@@ -235,10 +238,18 @@
 }
 
 .uploadedName {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   font-size: 13px;
   color: var(--text-primary);
   font-family: var(--font-ui);
   word-break: break-all;
+}
+
+.uploadedName svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .uploadedMeta {
@@ -247,22 +258,194 @@
   margin-top: 2px;
 }
 
+.docActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+.updateBtn,
 .deleteBtn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 12px;
-  padding: var(--sp-1) var(--sp-2);
+  padding: 6px 10px;
+  border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: 12px;
+  font-family: var(--font-ui);
   cursor: pointer;
   transition: all var(--transition);
   white-space: nowrap;
-  flex-shrink: 0;
+}
+
+.updateBtn {
+  color: var(--text-primary);
+}
+
+.updateBtn:hover {
+  border-color: var(--admin-accent);
+  color: var(--admin-accent);
+}
+
+.deleteBtn {
+  color: var(--danger);
 }
 
 .deleteBtn:hover {
   color: var(--danger);
   background: var(--danger-subtle);
+  border-color: var(--danger);
+}
+
+.updateBtn:disabled,
+.deleteBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.emptyNote {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: var(--sp-5) 0;
+}
+
+.errorText {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: var(--sp-3);
+}
+
+/* ── Confirm modal ── */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--sp-5);
+}
+
+.modalBox {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-6);
+  box-shadow: var(--shadow-lg);
+}
+
+.modalTitle {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modalBody {
+  margin-top: var(--sp-3);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  margin-top: var(--sp-6);
+}
+
+.modalCancelBtn {
+  padding: 8px var(--sp-4);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.modalCancelBtn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+.modalDeleteBtn {
+  padding: 8px var(--sp-4);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--danger);
+  color: #fff;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.modalDeleteBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Chatbot test bubbles ── */
+.testBubble {
+  align-self: flex-start;
+  max-width: 85%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.testBubble.user {
+  align-self: flex-end;
+  background: var(--admin-accent);
+  color: #fff;
+}
+
+.testBubble.bot {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  color: var(--text-primary);
+}
+
+.testTyping {
+  align-self: flex-start;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.timingList {
+  margin-top: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.timingRow {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+}
+
+.timingLabel {
+  color: var(--text-secondary);
+}
+
+.timingVal {
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-weight: 500;
 }
 
 /* ── Table ── */
