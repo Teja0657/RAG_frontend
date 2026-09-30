@@ -295,7 +295,11 @@ const ChatPage = () => {
 
           for (const line of rawEvent.split('\n')) {
             if (line.startsWith('event:')) eventType = line.slice(6).trim();
-            else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+            else if (line.startsWith('data:')) {
+              let value = line.slice(5);
+              if (value.startsWith(' ')) value = value.slice(1);
+              dataLines.push(value);
+            }
           }
 
           const data = dataLines.join('\n');
