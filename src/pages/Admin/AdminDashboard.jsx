@@ -11,6 +11,9 @@ import styles from './Admin.module.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+// Keep in sync with SUPPORTED_EXTENSIONS in rag_core/ingestion/ingestion.py
+const SUPPORTED_EXTENSIONS = ['.pdf', '.txt', '.md', '.docx', '.html', '.htm', '.csv'];
+
 const NAV = [
   { id: 'overview', icon: LayoutDashboard, label: 'Overview'     },
   { id: 'upload',   icon: FolderOpen,      label: 'Documents'    },
@@ -241,8 +244,18 @@ const AdminDashboard = () => {
 };
 
   const handleFiles = (files) => {
-    const file = files[0]; // one at a time — backend processes a single PDF per request
-    if (file) uploadFile(file);
+    const file = files[0]; // one at a time — backend processes a single document per request
+    if (!file) return;
+
+    const extension = `.${file.name.split('.').pop().toLowerCase()}`;
+    if (!SUPPORTED_EXTENSIONS.includes(extension)) {
+      setUploadError(
+        `Unsupported file type "${extension}". Supported types: ${SUPPORTED_EXTENSIONS.join(', ')}`
+      );
+      return;
+    }
+
+    uploadFile(file);
   };
 
   const handleDrop = (e) => {
@@ -499,12 +512,14 @@ const AdminDashboard = () => {
           : 'Drop a file here or click to browse'}
       </p>
 
-      <p className={styles.uploadSub}>PDF supported</p>
+      <p className={styles.uploadSub}>
+        Supported: {SUPPORTED_EXTENSIONS.join(', ')}
+      </p>
 
       <input
         ref={fileRef}
         type="file"
-        accept=".pdf"
+        accept={SUPPORTED_EXTENSIONS.join(',')}
         style={{ display: 'none' }}
         onChange={e => handleFiles(e.target.files)}
         disabled={uploading}
@@ -516,7 +531,7 @@ const AdminDashboard = () => {
     <input
       ref={updateFileRef}
       type="file"
-      accept=".pdf"
+      accept={SUPPORTED_EXTENSIONS.join(',')}
       style={{ display: 'none' }}
       onClick={e => e.stopPropagation()}
       onChange={e => {
@@ -524,7 +539,14 @@ const AdminDashboard = () => {
         const file = e.target.files?.[0];
 
         if (file) {
-          submitDocumentUpdate(file);
+          const extension = `.${file.name.split('.').pop().toLowerCase()}`;
+          if (!SUPPORTED_EXTENSIONS.includes(extension)) {
+            setUploadError(
+              `Unsupported file type "${extension}". Supported types: ${SUPPORTED_EXTENSIONS.join(', ')}`
+            );
+          } else {
+            submitDocumentUpdate(file);
+          }
         }
 
         e.target.value = '';
